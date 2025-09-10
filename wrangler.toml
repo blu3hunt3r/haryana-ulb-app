@@ -1,0 +1,26 @@
+name = "haryana-ulb-worker"
+main = "src/worker/index.ts"
+compatibility_date = "2023-12-01"
+
+# Account ID
+account_id = "0d43d10056487eb98bf86e0199b05ee7"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "haryana-ulb"
+database_id = "bfe45d09-9b52-42d5-8972-ec093762b72d"
+
+# KV namespace for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "c0d2e43ab32e4096947adae4992b8d5a"
+
+# R2 bucket for static assets
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "haryana-ulb-assets"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"

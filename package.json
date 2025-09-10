@@ -1,0 +1,42 @@
+{
+  "name": "haryana-ulb-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "wrangler pages deploy dist",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute haryana-ulb --file=./database/schema.sql",
+    "db:seed": "wrangler d1 execute haryana-ulb --file=./database/seed.sql",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "mermaid": "^10.6.1",
+    "lucide-react": "^0.292.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.1.1",
+    "vite": "^5.0.0",
+    "vite-plugin-pwa": "^0.17.4",
+    "tailwindcss": "^3.3.6",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "typescript": "^5.2.2",
+    "vitest": "^1.0.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/jest-dom": "^6.1.5",
+    "axe-core": "^4.8.3"
+  }
+}
