@@ -50,8 +50,8 @@ interface Personnel {
 }
 
 const API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'https://haryana-ulb-worker.your-subdomain.workers.dev'
-  : 'http://localhost:8787';
+  ? 'https://haryana-ulb-worker.arunyadav17895.workers.dev'
+  : 'https://haryana-ulb-worker.arunyadav17895.workers.dev';
 
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
