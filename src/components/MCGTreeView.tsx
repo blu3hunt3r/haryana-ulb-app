@@ -20,7 +20,7 @@ interface MCGTreeViewProps {
 }
 
 const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) => {
-  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([15, 16])); // Start with Mayor Office and Municipal Commissioner expanded
+  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([15, 16, 17, 18])); // Start with key hierarchy levels expanded
   const [searchTerm, setSearchTerm] = useState('');
 
   // Build proper nested hierarchy with correct parent-child relationships
@@ -73,11 +73,12 @@ const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) =
     };
 
     // Create the root structure - start with departments that have parent_id = 2 (the MCG org)
+    // These should only be Mayor Office and Municipal Commissioner Office
     const rootDepartments = depts
       .filter(d => d.parent_id === 2) // These are direct children of MCG organization
       .map(d => deptMap.get(d.id)!)
       .sort((a, b) => {
-        // Mayor Office should come first, then Municipal Commissioner
+        // Mayor Office should come first, then Municipal Commissioner Office
         if (a.name?.includes('Mayor')) return -1;
         if (b.name?.includes('Mayor')) return 1;
         if (a.name?.includes('Municipal Commissioner')) return -1;
@@ -329,7 +330,7 @@ const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) =
             Expand All
           </button>
           <button
-            onClick={() => setExpandedNodes(new Set([15, 16]))} // Keep Mayor Office and Municipal Commissioner expanded
+            onClick={() => setExpandedNodes(new Set([15, 16, 17, 18]))} // Keep key hierarchy levels expanded
             className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
           >
             Collapse All
