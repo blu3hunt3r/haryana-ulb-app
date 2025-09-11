@@ -56,8 +56,9 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
-// Cache TTL (24 hours)
-const CACHE_TTL = 24 * 60 * 60;
+// Cache TTL - minimal for development
+const CACHE_TTL = 30; // 30 seconds
+const BYPASS_CACHE = true; // Set to false for production
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -140,20 +141,28 @@ async function handleApiRequest(
       if (path === '/grievance-categories') {
         return getGrievanceCategories(env);
       }
-      if (path === '/rts-services') {
-        return getRTSServices(env);
-      }
-      throw new Error('Endpoint not found');
+        if (path === '/rts-services') {
+          return getRTSServices(env);
+        }
+        if (path === '/clear-cache') {
+          // Development endpoint to clear all cache
+          const keys = ['ulb-structure', 'mcg-structure', 'mcg-wards', 'gmda-divisions', 'all-departments', 'all-personnel', 'grievance-categories', 'rts-services'];
+          await Promise.all(keys.map(key => env.CACHE.delete(key)));
+          return { message: 'Cache cleared successfully' };
+        }
+        throw new Error('Endpoint not found');
   }
 }
 
 async function getULBStructure(env: Env): Promise<any> {
   const cacheKey = 'ulb-structure';
   
-  // Check cache first
-  const cached = await env.CACHE.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
+  // Check cache first (unless bypassed)
+  if (!BYPASS_CACHE) {
+    const cached = await env.CACHE.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
   }
 
   // Query database
@@ -169,10 +178,12 @@ async function getULBStructure(env: Env): Promise<any> {
   const departments = results as Department[];
   const structure = buildHierarchy(departments);
 
-  // Cache the result
-  await env.CACHE.put(cacheKey, JSON.stringify(structure), {
-    expirationTtl: CACHE_TTL,
-  });
+  // Cache the result (unless bypassed)
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(structure), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return structure;
 }
@@ -180,10 +191,12 @@ async function getULBStructure(env: Env): Promise<any> {
 async function getMCGStructure(env: Env): Promise<any> {
   const cacheKey = 'mcg-structure';
   
-  // Check cache first
-  const cached = await env.CACHE.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
+  // Check cache first (unless bypassed)
+  if (!BYPASS_CACHE) {
+    const cached = await env.CACHE.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
   }
 
   // Query database - get all MCG departments
@@ -210,10 +223,12 @@ async function getMCGStructure(env: Env): Promise<any> {
   // Build hierarchy with MCG-specific root
   const structure = buildMCGHierarchy(departments, mcgRoot.id);
 
-  // Cache the result
-  await env.CACHE.put(cacheKey, JSON.stringify(structure), {
-    expirationTtl: CACHE_TTL,
-  });
+  // Cache the result (unless bypassed)
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(structure), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return structure;
 }
@@ -264,9 +279,11 @@ async function getMCGWards(env: Env): Promise<any> {
 
   const wards = results as Ward[];
 
-  await env.CACHE.put(cacheKey, JSON.stringify(wards), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(wards), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return wards;
 }
@@ -290,9 +307,11 @@ async function getGMDADivisions(env: Env): Promise<any> {
 
   const divisions = results;
 
-  await env.CACHE.put(cacheKey, JSON.stringify(divisions), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(divisions), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return divisions;
 }
@@ -333,9 +352,11 @@ async function searchRolesPersonnel(query: string, env: Env): Promise<any> {
     total: (roleResults?.length || 0) + (personnelResults?.length || 0),
   };
 
-  await env.CACHE.put(cacheKey, JSON.stringify(searchResults), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(searchResults), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return searchResults;
 }
@@ -343,9 +364,11 @@ async function searchRolesPersonnel(query: string, env: Env): Promise<any> {
 async function getAllDepartments(env: Env): Promise<any> {
   const cacheKey = 'all-departments';
   
-  const cached = await env.CACHE.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached);
+  if (!BYPASS_CACHE) {
+    const cached = await env.CACHE.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
   }
 
   const { results } = await env.DB.prepare(`
@@ -353,9 +376,11 @@ async function getAllDepartments(env: Env): Promise<any> {
     ORDER BY organization, level, name
   `).all();
 
-  await env.CACHE.put(cacheKey, JSON.stringify(results), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(results), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return results;
 }
@@ -376,9 +401,11 @@ async function getAllPersonnel(env: Env): Promise<any> {
     ORDER BY d.organization, p.is_elected DESC, p.name
   `).all();
 
-  await env.CACHE.put(cacheKey, JSON.stringify(results), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(results), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return results;
 }
@@ -424,9 +451,11 @@ async function getRoleDetails(roleId: number, env: Env): Promise<any> {
 
   const roleDetail = results[0] || null;
 
-  await env.CACHE.put(cacheKey, JSON.stringify(roleDetail), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(roleDetail), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return roleDetail;
 }
@@ -447,9 +476,11 @@ async function getContactInfo(roleId: number, env: Env): Promise<any> {
 
   const contactInfo = results[0] || null;
 
-  await env.CACHE.put(cacheKey, JSON.stringify(contactInfo), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(contactInfo), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return contactInfo;
 }
@@ -469,9 +500,11 @@ async function getGrievanceCategories(env: Env): Promise<any> {
     ORDER BY gc.category_name
   `).all();
 
-  await env.CACHE.put(cacheKey, JSON.stringify(results), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(results), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return results;
 }
@@ -491,9 +524,11 @@ async function getRTSServices(env: Env): Promise<any> {
     ORDER BY rts.timeline_days, rts.service_name
   `).all();
 
-  await env.CACHE.put(cacheKey, JSON.stringify(results), {
-    expirationTtl: CACHE_TTL,
-  });
+  if (!BYPASS_CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(results), {
+      expirationTtl: CACHE_TTL,
+    });
+  }
 
   return results;
 }
