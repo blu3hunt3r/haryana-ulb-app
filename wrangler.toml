@@ -24,3 +24,6 @@ bucket_name = "haryana-ulb-assets"
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
+
+# Pages configuration
+pages_build_output_dir = "dist"

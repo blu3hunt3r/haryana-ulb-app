@@ -5,6 +5,7 @@ import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import SearchBar from './components/SearchBar';
 import OrgChart from './components/OrgChart';
+import MCGPage from './components/MCGPage';
 import { 
   Building2, 
   Users, 
@@ -329,16 +330,7 @@ const ULBPage: React.FC = () => {
   );
 };
 
-const MCGPage: React.FC = () => {
-  return (
-    <div className="text-center py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">
-        Municipal Corporation of Gurugram
-      </h1>
-      <p className="text-gray-600">MCG organizational structure coming soon...</p>
-    </div>
-  );
-};
+// MCGPage is now imported from separate component file
 
 const GMDAPage: React.FC = () => {
   return (

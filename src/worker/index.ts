@@ -126,6 +126,21 @@ async function handleApiRequest(
     case '/personnel':
       return getAllPersonnel(env);
     default:
+      // Handle dynamic routes
+      if (path.startsWith('/role-details/')) {
+        const roleId = path.split('/')[2];
+        return getRoleDetails(parseInt(roleId), env);
+      }
+      if (path.startsWith('/contact-info/')) {
+        const roleId = path.split('/')[2];
+        return getContactInfo(parseInt(roleId), env);
+      }
+      if (path === '/grievance-categories') {
+        return getGrievanceCategories(env);
+      }
+      if (path === '/rts-services') {
+        return getRTSServices(env);
+      }
       throw new Error('Endpoint not found');
   }
 }
@@ -321,4 +336,92 @@ function buildHierarchy(departments: Department[]): Department[] {
   });
 
   return roots;
+}
+
+async function getRoleDetails(roleId: number, env: Env): Promise<any> {
+  const cacheKey = `role-details-${roleId}`;
+  
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT * FROM role_details WHERE role_id = ?
+  `).bind(roleId).all();
+
+  const roleDetail = results[0] || null;
+
+  await env.CACHE.put(cacheKey, JSON.stringify(roleDetail), {
+    expirationTtl: CACHE_TTL,
+  });
+
+  return roleDetail;
+}
+
+async function getContactInfo(roleId: number, env: Env): Promise<any> {
+  const cacheKey = `contact-info-${roleId}`;
+  
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT ci.* FROM contact_information ci
+    JOIN roles r ON r.department_id = ci.department_id
+    WHERE r.id = ?
+  `).bind(roleId).all();
+
+  const contactInfo = results[0] || null;
+
+  await env.CACHE.put(cacheKey, JSON.stringify(contactInfo), {
+    expirationTtl: CACHE_TTL,
+  });
+
+  return contactInfo;
+}
+
+async function getGrievanceCategories(env: Env): Promise<any> {
+  const cacheKey = 'grievance-categories';
+  
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT gc.*, d.name as department_name 
+    FROM grievance_categories gc
+    LEFT JOIN departments d ON d.id = gc.department_id
+    ORDER BY gc.category_name
+  `).all();
+
+  await env.CACHE.put(cacheKey, JSON.stringify(results), {
+    expirationTtl: CACHE_TTL,
+  });
+
+  return results;
+}
+
+async function getRTSServices(env: Env): Promise<any> {
+  const cacheKey = 'rts-services';
+  
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const { results } = await env.DB.prepare(`
+    SELECT rts.*, d.name as department_name 
+    FROM rts_services rts
+    LEFT JOIN departments d ON d.id = rts.department_id
+    ORDER BY rts.timeline_days, rts.service_name
+  `).all();
+
+  await env.CACHE.put(cacheKey, JSON.stringify(results), {
+    expirationTtl: CACHE_TTL,
+  });
+
+  return results;
 }
