@@ -186,7 +186,7 @@ async function getMCGStructure(env: Env): Promise<any> {
     return JSON.parse(cached);
   }
 
-  // Query database
+  // Query database - get all MCG departments
   const { results } = await env.DB.prepare(`
     SELECT d.*, COUNT(c.id) as child_count
     FROM departments d
@@ -197,7 +197,18 @@ async function getMCGStructure(env: Env): Promise<any> {
   `).all();
 
   const departments = results as Department[];
-  const structure = buildHierarchy(departments);
+  
+  // For MCG, we need to build hierarchy starting from the actual MCG departments
+  // Find the root MCG department (the one with organization='MCG' and lowest level)
+  const mcgRoot = departments.find(d => d.name?.includes('Mayor Office') || d.level === 1);
+  
+  if (!mcgRoot) {
+    // If no clear root, return flat structure
+    return departments;
+  }
+
+  // Build hierarchy with MCG-specific root
+  const structure = buildMCGHierarchy(departments, mcgRoot.id);
 
   // Cache the result
   await env.CACHE.put(cacheKey, JSON.stringify(structure), {
@@ -205,6 +216,35 @@ async function getMCGStructure(env: Env): Promise<any> {
   });
 
   return structure;
+}
+
+function buildMCGHierarchy(departments: Department[], rootId: number): Department[] {
+  const departmentMap = new Map<number, Department>();
+  
+  // Create map of all departments
+  departments.forEach(dept => {
+    departmentMap.set(dept.id, { ...dept, children: [] });
+  });
+
+  // Build hierarchy starting from the specified root
+  const root = departmentMap.get(rootId);
+  if (!root) return departments;
+
+  // Find all children recursively
+  const buildChildren = (parentId: number): Department[] => {
+    const children: Department[] = [];
+    departments.forEach(dept => {
+      if (dept.parent_id === parentId) {
+        const child = departmentMap.get(dept.id)!;
+        child.children = buildChildren(dept.id);
+        children.push(child);
+      }
+    });
+    return children.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  };
+
+  root.children = buildChildren(rootId);
+  return [root];
 }
 
 async function getMCGWards(env: Env): Promise<any> {

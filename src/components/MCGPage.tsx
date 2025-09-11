@@ -63,14 +63,17 @@ const MCGPage: React.FC = () => {
   const fetchMCGData = async () => {
     try {
       setLoading(true);
-      const [structureResponse, rolesResponse, personnelResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/mcg/structure`),
+      const [deptResponse, rolesResponse, personnelResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/departments`),
         fetch(`${API_BASE}/api/search?query=MCG`),
         fetch(`${API_BASE}/api/personnel`)
       ]);
 
-      if (structureResponse.ok) {
-        const structure = await structureResponse.json();
+      if (deptResponse.ok) {
+        const allDepts = await deptResponse.json();
+        // Filter and build MCG hierarchy
+        const mcgDepts = allDepts.filter((d: Department) => d.organization === 'MCG');
+        const structure = buildMCGHierarchy(mcgDepts);
         setMcgData(structure);
       }
 
@@ -133,6 +136,50 @@ const MCGPage: React.FC = () => {
 
   const getPersonnelByRole = (roleTitle: string) => {
     return personnel.find(p => p.role_title.toLowerCase().includes(roleTitle.toLowerCase()));
+  };
+
+  const buildMCGHierarchy = (departments: Department[]): Department[] => {
+    if (!departments.length) return [];
+
+    // Find the Mayor Office as the root (it has the lowest level among MCG departments)
+    const mayorOffice = departments.find(d => d.name?.includes('Mayor Office'));
+    if (!mayorOffice) {
+      // If no Mayor Office found, use the first level 1 department
+      const root = departments.find(d => d.level === 1);
+      if (!root) return departments; // Return flat structure if no clear root
+      return buildHierarchyFromRoot(departments, root.id);
+    }
+
+    return buildHierarchyFromRoot(departments, mayorOffice.id);
+  };
+
+  const buildHierarchyFromRoot = (departments: Department[], rootId: number): Department[] => {
+    const departmentMap = new Map<number, Department>();
+    
+    // Create map of all departments
+    departments.forEach(dept => {
+      departmentMap.set(dept.id, { ...dept, children: [] });
+    });
+
+    // Find the root
+    const root = departmentMap.get(rootId);
+    if (!root) return departments;
+
+    // Build children recursively
+    const buildChildren = (parentId: number): Department[] => {
+      const children: Department[] = [];
+      departments.forEach(dept => {
+        if (dept.parent_id === parentId) {
+          const child = departmentMap.get(dept.id)!;
+          child.children = buildChildren(dept.id);
+          children.push(child);
+        }
+      });
+      return children.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+    };
+
+    root.children = buildChildren(rootId);
+    return [root];
   };
 
   if (loading) {
