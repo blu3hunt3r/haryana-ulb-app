@@ -20,9 +20,10 @@ interface OrgChartProps {
   organization: 'ULB' | 'MCG' | 'GMDA' | 'WARD';
   title: string;
   description?: string;
+  onNodeClick?: (nodeId: number, nodeName: string) => void;
 }
 
-const OrgChart: React.FC<OrgChartProps> = ({ data, organization, title, description }) => {
+const OrgChart: React.FC<OrgChartProps> = ({ data, organization, title, description, onNodeClick }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([1])); // Expand root by default
   const [isLoading, setIsLoading] = useState(true);
@@ -162,13 +163,21 @@ const OrgChart: React.FC<OrgChartProps> = ({ data, organization, title, descript
   };
 
   const addClickHandlers = () => {
-    // Add click handlers to nodes for expand/collapse functionality
+    // Add click handlers to nodes for expand/collapse and detail view
     const nodes = chartRef.current?.querySelectorAll('.node');
     nodes?.forEach(node => {
       node.addEventListener('click', (e) => {
         e.stopPropagation();
         const nodeId = parseInt(node.id.replace('node', ''));
-        toggleNode(nodeId);
+        const nodeName = node.textContent?.replace(/\s*\[.*?\]$/, '') || '';
+        
+        // If onNodeClick is provided, call it (for role details)
+        if (onNodeClick && organization === 'MCG') {
+          onNodeClick(nodeId, nodeName);
+        } else {
+          // Otherwise, toggle node expansion
+          toggleNode(nodeId);
+        }
       });
     });
   };

@@ -111,6 +111,8 @@ async function handleApiRequest(
   switch (path) {
     case '/ulb/structure':
       return getULBStructure(env);
+    case '/mcg/structure':
+      return getMCGStructure(env);
     case '/mcg/wards':
       return getMCGWards(env);
     case '/gmda/divisions':
@@ -160,6 +162,36 @@ async function getULBStructure(env: Env): Promise<any> {
     FROM departments d
     LEFT JOIN departments c ON c.parent_id = d.id
     WHERE d.organization = 'ULB'
+    GROUP BY d.id
+    ORDER BY d.level, d.name
+  `).all();
+
+  const departments = results as Department[];
+  const structure = buildHierarchy(departments);
+
+  // Cache the result
+  await env.CACHE.put(cacheKey, JSON.stringify(structure), {
+    expirationTtl: CACHE_TTL,
+  });
+
+  return structure;
+}
+
+async function getMCGStructure(env: Env): Promise<any> {
+  const cacheKey = 'mcg-structure';
+  
+  // Check cache first
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  // Query database
+  const { results } = await env.DB.prepare(`
+    SELECT d.*, COUNT(c.id) as child_count
+    FROM departments d
+    LEFT JOIN departments c ON c.parent_id = d.id
+    WHERE d.organization = 'MCG'
     GROUP BY d.id
     ORDER BY d.level, d.name
   `).all();

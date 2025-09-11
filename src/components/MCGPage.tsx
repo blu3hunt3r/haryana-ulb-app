@@ -4,24 +4,17 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import RoleDetailModal from './RoleDetailModal';
+import OrgChart from './OrgChart';
 import SearchBar from './SearchBar';
 import {
   Building2,
-  Users,
   Phone,
-  Mail,
   Clock,
-  AlertTriangle,
-  Search,
-  ChevronRight,
-  User,
-  Crown,
-  Shield,
-  Briefcase,
   MapPin,
   ExternalLink,
   HelpCircle,
-  Scale
+  Scale,
+  Shield
 } from 'lucide-react';
 
 interface Role {
@@ -61,7 +54,6 @@ const MCGPage: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,16 +63,15 @@ const MCGPage: React.FC = () => {
   const fetchMCGData = async () => {
     try {
       setLoading(true);
-      const [deptResponse, rolesResponse, personnelResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/departments`),
+      const [structureResponse, rolesResponse, personnelResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/mcg/structure`),
         fetch(`${API_BASE}/api/search?query=MCG`),
         fetch(`${API_BASE}/api/personnel`)
       ]);
 
-      if (deptResponse.ok) {
-        const departments = await deptResponse.json();
-        const mcgDepts = departments.filter((d: Department) => d.organization === 'MCG');
-        setMcgData(mcgDepts);
+      if (structureResponse.ok) {
+        const structure = await structureResponse.json();
+        setMcgData(structure);
       }
 
       if (rolesResponse.ok) {
@@ -105,18 +96,44 @@ const MCGPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleNodeClick = async (nodeId: number, nodeName: string) => {
+    // Try to find a role that matches this node
+    let matchingRole = roles.find(role => 
+      role.title.toLowerCase().includes(nodeName.toLowerCase()) ||
+      nodeName.toLowerCase().includes(role.title.toLowerCase())
+    );
+
+    // If no direct match, try to find by department name
+    if (!matchingRole) {
+      matchingRole = roles.find(role => 
+        role.department_name.toLowerCase().includes(nodeName.toLowerCase()) ||
+        nodeName.toLowerCase().includes(role.department_name.toLowerCase())
+      );
+    }
+
+    // If still no match, create a basic role object for the department
+    if (!matchingRole) {
+      const department = mcgData.find(d => d.id === nodeId);
+      if (department) {
+        matchingRole = {
+          id: nodeId,
+          title: nodeName,
+          description: department.description || 'Department information',
+          department_name: nodeName,
+          is_leadership: department.level <= 2
+        };
+      }
+    }
+
+    if (matchingRole) {
+      setSelectedRole(matchingRole);
+      setIsModalOpen(true);
+    }
+  };
+
   const getPersonnelByRole = (roleTitle: string) => {
     return personnel.find(p => p.role_title.toLowerCase().includes(roleTitle.toLowerCase()));
   };
-
-  const filteredRoles = roles.filter(role => 
-    role.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    role.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    role.department_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const leadershipRoles = filteredRoles.filter(role => role.is_leadership);
-  const operationalRoles = filteredRoles.filter(role => !role.is_leadership);
 
   if (loading) {
     return (
@@ -187,136 +204,24 @@ const MCGPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Search Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="w-5 h-5" />
-            Search MCG Roles & Personnel
-          </CardTitle>
-          <CardDescription>
-            Click on any role to see detailed information, reporting structure, and grievance process
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 mb-4">
-            <Input
-              placeholder="Search by role, department, or responsibility..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button variant="outline" onClick={() => setSearchQuery('')}>
-              Clear
-            </Button>
-          </div>
-          <div className="text-sm text-gray-600">
-            Found {filteredRoles.length} roles • {leadershipRoles.length} leadership positions
-          </div>
-        </CardContent>
-      </Card>
+      {/* Interactive Organizational Chart */}
+      <div className="mb-4">
+        <SearchBar 
+          apiEndpoint={`${API_BASE}/api/search`}
+          onSearch={(results) => {
+            // Handle search results if needed
+            console.log('Search results:', results);
+          }}
+        />
+      </div>
 
-      {/* Leadership Hierarchy */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-yellow-600" />
-            Leadership Hierarchy
-          </CardTitle>
-          <CardDescription>
-            Senior leadership positions with decision-making authority
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {leadershipRoles.map(role => {
-              const person = getPersonnelByRole(role.title);
-              return (
-                <div
-                  key={role.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleRoleClick(role)}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-700 rounded-full flex items-center justify-center">
-                      <User className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{role.title}</h3>
-                      {person && (
-                        <p className="text-green-700 font-medium">{person.name}</p>
-                      )}
-                      <p className="text-sm text-gray-600">{role.department_name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{role.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="success">Leadership</Badge>
-                    {person?.is_elected && (
-                      <Badge variant="warning">Elected</Badge>
-                    )}
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Operational Roles by Department */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-blue-600" />
-            Operational Roles
-          </CardTitle>
-          <CardDescription>
-            Department-wise operational roles and responsibilities
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6">
-            {/* Group operational roles by department */}
-            {Object.entries(
-              operationalRoles.reduce((acc, role) => {
-                const dept = role.department_name;
-                if (!acc[dept]) acc[dept] = [];
-                acc[dept].push(role);
-                return acc;
-              }, {} as Record<string, Role[]>)
-            ).map(([department, deptRoles]) => (
-              <div key={department} className="border rounded-lg p-4">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600" />
-                  {department}
-                </h3>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {deptRoles.map(role => {
-                    const person = getPersonnelByRole(role.title);
-                    return (
-                      <div
-                        key={role.id}
-                        className="p-3 border rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
-                        onClick={() => handleRoleClick(role)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-sm">{role.title}</h4>
-                          <ChevronRight className="w-3 h-3 text-gray-400" />
-                        </div>
-                        {person && (
-                          <p className="text-blue-700 text-sm font-medium mb-1">{person.name}</p>
-                        )}
-                        <p className="text-xs text-gray-600 line-clamp-2">{role.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <OrgChart
+        data={mcgData}
+        organization="MCG"
+        title="MCG Organizational Structure"
+        description="Interactive chart - Click on any position to view detailed role information, responsibilities, and contact details"
+        onNodeClick={handleNodeClick}
+      />
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-3 gap-6">
