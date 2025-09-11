@@ -20,45 +20,80 @@ interface MCGTreeViewProps {
 }
 
 const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) => {
-  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([15])); // Start with Mayor Office expanded
+  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([15, 16])); // Start with Mayor Office and Municipal Commissioner expanded
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Build proper hierarchy
-  const buildHierarchy = (depts: Department[]): Department[] => {
-    const deptMap = new Map<number, Department>();
-    const roots: Department[] = [];
+  // Build proper nested hierarchy with correct parent-child relationships
+  const buildProperHierarchy = (depts: Department[]): Department[] => {
+    console.log('Building hierarchy from departments:', depts.map(d => ({
+      id: d.id, 
+      name: d.name, 
+      parent_id: d.parent_id, 
+      level: d.level
+    })));
 
-    // Create map with children arrays
+    const deptMap = new Map<number, Department>();
+    
+    // Create map with children arrays initialized
     depts.forEach(dept => {
       deptMap.set(dept.id, { ...dept, children: [] });
     });
 
-    // Build parent-child relationships
+    // Find the actual root (Mayor Office should be level 1, parent_id = 2)
+    const mayorOffice = depts.find(d => d.name?.includes('Mayor Office'));
+    const municipalCommissioner = depts.find(d => d.name?.includes('Municipal Commissioner'));
+    
+    console.log('Found Mayor Office:', mayorOffice);
+    console.log('Found Municipal Commissioner:', municipalCommissioner);
+
+    // Build the hierarchy by connecting children to parents
     depts.forEach(dept => {
-      const deptWithChildren = deptMap.get(dept.id)!;
+      const currentDept = deptMap.get(dept.id)!;
       
-      if (dept.parent_id === null || dept.parent_id === 2) {
-        // Root level (Mayor Office, etc.)
-        roots.push(deptWithChildren);
-      } else {
-        const parent = deptMap.get(dept.parent_id);
-        if (parent) {
-          parent.children = parent.children || [];
-          parent.children.push(deptWithChildren);
+      // Find all departments that should be children of this department
+      depts.forEach(potentialChild => {
+        if (potentialChild.parent_id === dept.id) {
+          const childDept = deptMap.get(potentialChild.id)!;
+          currentDept.children = currentDept.children || [];
+          currentDept.children.push(childDept);
         }
-      }
+      });
     });
 
-    // Sort children by level and name
-    const sortChildren = (dept: Department) => {
-      if (dept.children) {
-        dept.children.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-        dept.children.forEach(sortChildren);
+    // Sort all children recursively
+    const sortChildrenRecursively = (dept: Department) => {
+      if (dept.children && dept.children.length > 0) {
+        dept.children.sort((a, b) => {
+          // Sort by level first, then by name
+          if (a.level !== b.level) return a.level - b.level;
+          return a.name.localeCompare(b.name);
+        });
+        dept.children.forEach(sortChildrenRecursively);
       }
     };
 
-    roots.forEach(sortChildren);
-    return roots.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+    // Create the root structure - start with departments that have parent_id = 2 (the MCG org)
+    const rootDepartments = depts
+      .filter(d => d.parent_id === 2) // These are direct children of MCG organization
+      .map(d => deptMap.get(d.id)!)
+      .sort((a, b) => {
+        // Mayor Office should come first, then Municipal Commissioner
+        if (a.name?.includes('Mayor')) return -1;
+        if (b.name?.includes('Mayor')) return 1;
+        if (a.name?.includes('Municipal Commissioner')) return -1;
+        if (b.name?.includes('Municipal Commissioner')) return 1;
+        return a.level - b.level || a.name.localeCompare(b.name);
+      });
+
+    // Sort all children recursively
+    rootDepartments.forEach(sortChildrenRecursively);
+
+    console.log('Built hierarchy roots:', rootDepartments.map(d => ({
+      name: d.name,
+      children: d.children?.length || 0
+    })));
+
+    return rootDepartments;
   };
 
   // Filter departments based on search
@@ -122,13 +157,41 @@ const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) =
     
     return (
       <div key={dept.id} className="mb-1">
+        {/* Department/Role Row */}
         <div 
-          style={{ marginLeft: `${depth * 20}px` }}
-          className={getLevelStyle(dept.level)}
+          className={`${getLevelStyle(dept.level)} relative`}
+          style={{ marginLeft: `${depth * 24}px` }}
           onClick={() => onRoleClick(dept)}
         >
+          {/* Hierarchy Lines */}
+          {depth > 0 && (
+            <>
+              {/* Vertical line from parent */}
+              <div 
+                className="absolute border-l-2 border-gray-300"
+                style={{
+                  left: `${-12}px`,
+                  top: '-8px',
+                  height: '20px',
+                  width: '1px'
+                }}
+              />
+              {/* Horizontal line to item */}
+              <div 
+                className="absolute border-t-2 border-gray-300"
+                style={{
+                  left: `${-12}px`,
+                  top: '12px',
+                  width: '12px',
+                  height: '1px'
+                }}
+              />
+            </>
+          )}
+
+          {/* Expand/Collapse Button */}
           <div 
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 mr-2"
             onClick={(e) => {
               if (hasChildren) {
                 e.stopPropagation();
@@ -138,41 +201,65 @@ const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) =
           >
             {hasChildren ? (
               isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-500" />
+                <ChevronDown className="w-4 h-4 text-gray-500 hover:text-gray-700 cursor-pointer" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-gray-500" />
+                <ChevronRight className="w-4 h-4 text-gray-500 hover:text-gray-700 cursor-pointer" />
               )
             ) : (
               <div className="w-4 h-4" />
             )}
           </div>
           
+          {/* Role Icon */}
           {getIcon(dept)}
           
-          <div className="flex-1">
-            <div className="font-medium text-sm">{dept.name}</div>
+          {/* Role Information */}
+          <div className="flex-1 ml-2">
+            <div className={`font-medium text-sm ${depth === 0 ? 'text-blue-800 font-bold' : depth === 1 ? 'text-green-700 font-semibold' : 'text-gray-800'}`}>
+              {dept.name}
+            </div>
             {dept.description && (
               <div className="text-xs text-gray-600 mt-1">{dept.description}</div>
             )}
           </div>
           
+          {/* Children Count Badge */}
           {hasChildren && (
-            <Badge variant="secondary" className="text-xs">
-              {dept.children?.length} roles
+            <Badge variant="secondary" className="text-xs ml-2">
+              {dept.children?.length} {dept.children?.length === 1 ? 'role' : 'roles'}
             </Badge>
           )}
         </div>
         
+        {/* Children */}
         {isExpanded && hasChildren && (
-          <div className="mt-1">
-            {dept.children?.map(child => renderDepartment(child, depth + 1))}
+          <div className="relative">
+            {/* Extended vertical line for children */}
+            {depth >= 0 && (
+              <div 
+                className="absolute border-l-2 border-gray-300"
+                style={{
+                  left: `${depth * 24 + 12}px`,
+                  top: '0px',
+                  height: '100%',
+                  width: '1px'
+                }}
+              />
+            )}
+            <div className="mt-1">
+              {dept.children?.map((child, index) => (
+                <div key={child.id} className="relative">
+                  {renderDepartment(child, depth + 1)}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
     );
   };
 
-  const hierarchy = buildHierarchy(departments);
+  const hierarchy = buildProperHierarchy(departments);
   const filteredHierarchy = searchTerm ? filterDepartments(hierarchy, searchTerm) : hierarchy;
 
   return (
@@ -242,7 +329,7 @@ const MCGTreeView: React.FC<MCGTreeViewProps> = ({ departments, onRoleClick }) =
             Expand All
           </button>
           <button
-            onClick={() => setExpandedNodes(new Set([15]))} // Keep only Mayor Office expanded
+            onClick={() => setExpandedNodes(new Set([15, 16]))} // Keep Mayor Office and Municipal Commissioner expanded
             className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
           >
             Collapse All
