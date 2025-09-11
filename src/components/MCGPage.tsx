@@ -4,8 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import RoleDetailModal from './RoleDetailModal';
-import OrgChart from './OrgChart';
-import SearchBar from './SearchBar';
+import MCGTreeView from './MCGTreeView';
 import {
   Building2,
   Phone,
@@ -71,10 +70,9 @@ const MCGPage: React.FC = () => {
 
       if (deptResponse.ok) {
         const allDepts = await deptResponse.json();
-        // Filter and build MCG hierarchy
+        // Filter MCG departments - no need for complex hierarchy building anymore
         const mcgDepts = allDepts.filter((d: Department) => d.organization === 'MCG');
-        const structure = buildMCGHierarchy(mcgDepts);
-        setMcgData(structure);
+        setMcgData(mcgDepts);
       }
 
       if (rolesResponse.ok) {
@@ -94,93 +92,25 @@ const MCGPage: React.FC = () => {
     }
   };
 
-  const handleRoleClick = (role: Role) => {
+  const handleDepartmentClick = (department: Department) => {
+    // Create a role object from department data - EVERY role should open a modal
+    const role: Role = {
+      id: department.id,
+      title: department.name,
+      description: department.description || `${department.name} - ${department.organization} Department`,
+      department_name: department.name,
+      is_leadership: department.level <= 2
+    };
+
     setSelectedRole(role);
     setIsModalOpen(true);
-  };
-
-  const handleNodeClick = async (nodeId: number, nodeName: string) => {
-    // Try to find a role that matches this node
-    let matchingRole = roles.find(role => 
-      role.title.toLowerCase().includes(nodeName.toLowerCase()) ||
-      nodeName.toLowerCase().includes(role.title.toLowerCase())
-    );
-
-    // If no direct match, try to find by department name
-    if (!matchingRole) {
-      matchingRole = roles.find(role => 
-        role.department_name.toLowerCase().includes(nodeName.toLowerCase()) ||
-        nodeName.toLowerCase().includes(role.department_name.toLowerCase())
-      );
-    }
-
-    // If still no match, create a basic role object for the department
-    if (!matchingRole) {
-      const department = mcgData.find(d => d.id === nodeId);
-      if (department) {
-        matchingRole = {
-          id: nodeId,
-          title: nodeName,
-          description: department.description || 'Department information',
-          department_name: nodeName,
-          is_leadership: department.level <= 2
-        };
-      }
-    }
-
-    if (matchingRole) {
-      setSelectedRole(matchingRole);
-      setIsModalOpen(true);
-    }
   };
 
   const getPersonnelByRole = (roleTitle: string) => {
     return personnel.find(p => p.role_title.toLowerCase().includes(roleTitle.toLowerCase()));
   };
 
-  const buildMCGHierarchy = (departments: Department[]): Department[] => {
-    if (!departments.length) return [];
 
-    // Find the Mayor Office as the root (it has the lowest level among MCG departments)
-    const mayorOffice = departments.find(d => d.name?.includes('Mayor Office'));
-    if (!mayorOffice) {
-      // If no Mayor Office found, use the first level 1 department
-      const root = departments.find(d => d.level === 1);
-      if (!root) return departments; // Return flat structure if no clear root
-      return buildHierarchyFromRoot(departments, root.id);
-    }
-
-    return buildHierarchyFromRoot(departments, mayorOffice.id);
-  };
-
-  const buildHierarchyFromRoot = (departments: Department[], rootId: number): Department[] => {
-    const departmentMap = new Map<number, Department>();
-    
-    // Create map of all departments
-    departments.forEach(dept => {
-      departmentMap.set(dept.id, { ...dept, children: [] });
-    });
-
-    // Find the root
-    const root = departmentMap.get(rootId);
-    if (!root) return departments;
-
-    // Build children recursively
-    const buildChildren = (parentId: number): Department[] => {
-      const children: Department[] = [];
-      departments.forEach(dept => {
-        if (dept.parent_id === parentId) {
-          const child = departmentMap.get(dept.id)!;
-          child.children = buildChildren(dept.id);
-          children.push(child);
-        }
-      });
-      return children.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-    };
-
-    root.children = buildChildren(rootId);
-    return [root];
-  };
 
   if (loading) {
     return (
@@ -251,23 +181,10 @@ const MCGPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Interactive Organizational Chart */}
-      <div className="mb-4">
-        <SearchBar 
-          apiEndpoint={`${API_BASE}/api/search`}
-          onSearch={(results) => {
-            // Handle search results if needed
-            console.log('Search results:', results);
-          }}
-        />
-      </div>
-
-      <OrgChart
-        data={mcgData}
-        organization="MCG"
-        title="MCG Organizational Structure"
-        description="Interactive chart - Click on any position to view detailed role information, responsibilities, and contact details"
-        onNodeClick={handleNodeClick}
+      {/* Interactive Organizational Tree View */}
+      <MCGTreeView 
+        departments={mcgData}
+        onRoleClick={handleDepartmentClick}
       />
 
       {/* Quick Actions */}
